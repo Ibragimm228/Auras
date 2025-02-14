@@ -15,39 +15,43 @@ function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<AuraHistory[]>(getAuraHistory());
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
   }, [isDarkMode]);
 
-  const generateAura = () => {
+  const generateAura = async () => {
+    setIsGenerating(true);
     setResult({ aura: null, isRevealed: false });
     playSound('generate');
     
-    setTimeout(() => {
-      const newAura = getRandomAura();
-      setResult({ aura: newAura, isRevealed: true });
-      
-      // Trigger confetti for rare auras
-      if (newAura.chance <= 5) {
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 }
-        });
-        playSound('rare');
-      } else {
-        playSound('reveal');
-      }
-      
-      const auraHistory: AuraHistory = {
-        aura: newAura,
-        timestamp: Date.now()
-      };
-      
-      saveAuraToHistory(auraHistory);
-      setHistory(getAuraHistory());
-    }, 500);
+   
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const newAura = getRandomAura();
+    setResult({ aura: newAura, isRevealed: true });
+    setIsGenerating(false);
+    
+    if (newAura.chance <= 5) {
+      confetti({
+        particleCount: 150,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#818CF8', '#C084FC', '#F472B6']
+      });
+      playSound('rare');
+    } else {
+      playSound('reveal');
+    }
+    
+    const auraHistory: AuraHistory = {
+      aura: newAura,
+      timestamp: Date.now()
+    };
+    
+    saveAuraToHistory(auraHistory);
+    setHistory(getAuraHistory());
   };
 
   const handleClearHistory = () => {
@@ -66,52 +70,80 @@ function App() {
   };
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
-      isDarkMode ? 'bg-gray-900' : 'bg-gray-100'
-    } flex flex-col items-center justify-center p-4 relative`}>
+    <div className={`min-h-screen transition-colors duration-700 ${
+      isDarkMode ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900' : 
+                   'bg-gradient-to-br from-gray-100 via-white to-gray-100'
+    } flex flex-col items-center justify-center p-4 relative overflow-hidden`}>
+      
+      <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10 animate-pulse-slow"></div>
+      
+    
       <button
         onClick={() => setIsDarkMode(!isDarkMode)}
-        className="absolute top-4 right-4 p-2 rounded-lg bg-opacity-20 backdrop-blur-sm
-                 hover:bg-opacity-30 transition-all"
-        style={{ background: isDarkMode ? '#ffffff20' : '#00000020' }}
+        className="absolute top-4 right-4 p-3 rounded-full glass-effect
+                   hover:scale-110 active:scale-95 transition-all duration-300
+                   hover:shadow-glow"
+        aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
       >
         {isDarkMode ? (
-          <Sun className="w-6 h-6 text-yellow-400" />
+          <Sun className="w-6 h-6 text-yellow-300 animate-glow" />
         ) : (
-          <Moon className="w-6 h-6 text-gray-600" />
+          <Moon className="w-6 h-6 text-gray-600 animate-glow" />
         )}
       </button>
 
-      <h1 className={`text-4xl md:text-5xl font-bold mb-8 flex items-center gap-2
-                    ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>
-        <Sparkles className="w-8 h-8 md:w-10 md:h-10" />
-        Генератор Ауры
+      
+      <h1 className="text-5xl md:text-6xl font-bold mb-12 flex items-center gap-3
+                    tracking-tight relative animate-float">
+        <Sparkles className="w-10 h-10 md:w-12 md:h-12 animate-pulse text-indigo-500" />
+        <span className="bg-clip-text text-transparent bg-gradient-to-r 
+                       from-indigo-500 via-purple-500 to-pink-500
+                       hover:from-pink-500 hover:via-purple-500 hover:to-indigo-500
+                       transition-all duration-500">
+          Генератор Ауры
+        </span>
       </h1>
-      <div className="w-full max-w-md px-4 sm:px-0">
+
+      <div className="w-full max-w-md px-4 sm:px-0 relative z-10">
         <div className="flex gap-4 mb-8">
           <button
             onClick={generateAura}
-            className="flex-1 py-4 px-6 rounded-lg bg-indigo-600 hover:bg-indigo-700 
-                     text-white font-semibold text-base sm:text-lg transition-all transform hover:scale-105
-                     focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50"
+            disabled={isGenerating}
+            className={`flex-1 py-4 px-6 rounded-xl 
+                     ${isGenerating ? 'animate-pulse opacity-75' : 'hover:scale-105'}
+                     bg-gradient-to-r from-indigo-600 to-purple-600
+                     hover:from-indigo-500 hover:to-purple-500
+                     text-white font-semibold text-lg transition-all
+                     focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50
+                     shadow-lg hover:shadow-xl active:scale-98
+                     disabled:cursor-not-allowed`}
           >
-            Раскрыть свою ауру
+            {isGenerating ? 'Генерация...' : 'Раскрыть свою ауру'}
           </button>
           <button
             onClick={() => setShowHistory(true)}
-            className="p-4 rounded-lg bg-gray-700 hover:bg-gray-600 text-white
-                     transition-all transform hover:scale-105
-                     focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"
+            className="p-4 rounded-xl glass-button text-white"
+            aria-label="Show history"
           >
             <History className="w-6 h-6" />
           </button>
         </div>
+
+        
         <div className="mt-8 relative">
+          {isGenerating && (
+            <div className="p-6 rounded-lg glass-effect shimmer animate-pulse">
+              <div className="h-8 w-3/4 bg-white/20 rounded mb-4"></div>
+              <div className="h-20 w-full bg-white/20 rounded"></div>
+            </div>
+          )}
+          
           {result.isRevealed && result.aura && (
-            <div className="relative">
+            <div className="aura-card">
               <div
-                className="p-6 rounded-lg shadow-xl transition-all duration-500 animate-fade-in
-                         backdrop-blur-sm bg-opacity-90 transform hover:scale-105"
+                className="p-6 rounded-lg shadow-xl transition-all duration-500
+                         backdrop-blur-lg bg-opacity-90 relative
+                         hover:shadow-glow-lg"
                 style={{
                   backgroundColor: result.aura.color,
                   color: ['#ECF0F1', '#FFD700'].includes(result.aura.color) ? '#2C3E50' : 'white'
@@ -137,9 +169,16 @@ function App() {
           )}
         </div>
       </div>
+
+      
       {showHistory && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-800 rounded-lg w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md 
+                      flex items-center justify-center p-4 z-50
+                      animate-fade-in">
+          <div className="bg-gray-800/90 rounded-2xl w-full max-w-lg max-h-[80vh] 
+                        overflow-hidden flex flex-col backdrop-blur-xl
+                        border border-gray-700/50 shadow-2xl
+                        animate-slide-up">
             <div className="p-4 border-b border-gray-700 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
                 <History className="w-5 h-5" />
