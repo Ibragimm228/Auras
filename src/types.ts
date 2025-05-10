@@ -48,4 +48,5 @@ export interface UserStats {
   rareAurasFound: number;
   lastDailyReward: number;
   streak: number;
+  monthlyCyclesCompleted: number;
 }

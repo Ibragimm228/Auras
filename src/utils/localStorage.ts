@@ -5,6 +5,7 @@ const COLLECTION_KEY = 'aura_collection';
 const ACHIEVEMENTS_KEY = 'aura_achievements';
 const USER_STATS_KEY = 'aura_user_stats';
 const DAILY_REWARDS_KEY = 'aura_daily_rewards';
+const UNLOCKED_OPTIONS_KEY = 'unlocked_generation_options';
 
 export function saveAuraToHistory(auraHistory: AuraHistory): void {
   const history = getAuraHistory();
@@ -50,6 +51,23 @@ export function getCollection(): Collection {
   return collection ? JSON.parse(collection) : { auras: [], completionPercentage: 0 };
 }
 
+export function removeAurasFromCollection(aurasToRemove: Array<{ aura: Aura; count: number }>): void {
+  const collection = getCollection();
+
+  aurasToRemove.forEach(itemToRemove => {
+    const existingAuraIndex = collection.auras.findIndex(item => item.aura.name === itemToRemove.aura.name);
+
+    if (existingAuraIndex > -1) {
+      collection.auras[existingAuraIndex].count -= itemToRemove.count;
+      if (collection.auras[existingAuraIndex].count <= 0) {
+        collection.auras.splice(existingAuraIndex, 1);
+      }
+    }
+  });
+
+  collection.completionPercentage = Math.round((collection.auras.length / getTotalUniqueAurasCount()) * 100);
+  localStorage.setItem(COLLECTION_KEY, JSON.stringify(collection));
+}
 
 function getTotalUniqueAurasCount(): number {
   return 90;
@@ -159,7 +177,8 @@ export function getUserStats(): UserStats {
     totalAuras: 0,
     rareAurasFound: 0,
     lastDailyReward: 0,
-    streak: 0
+    streak: 0,
+    monthlyCyclesCompleted: 0
   };
 }
 
@@ -238,8 +257,9 @@ export function claimDailyReward(day: number): boolean {
     
     reward.claimed = true;
     stats.lastDailyReward = today;
+    
     if (day === 31) {
-      rewards.forEach(r => r.claimed = false);
+       stats.monthlyCyclesCompleted += 1;
     }
     
 
@@ -265,4 +285,25 @@ export function resetAllProgress(): void {
   localStorage.removeItem(ACHIEVEMENTS_KEY);
   localStorage.removeItem(USER_STATS_KEY);
   localStorage.removeItem(DAILY_REWARDS_KEY);
+}
+
+interface UnlockedOptionsState {
+  double: boolean;
+  triple: boolean;
+  quad: boolean;
+  quint: boolean;
+}
+
+export function saveUnlockedGenerationOptions(options: UnlockedOptionsState): void {
+  localStorage.setItem(UNLOCKED_OPTIONS_KEY, JSON.stringify(options));
+}
+
+export function getUnlockedGenerationOptions(): UnlockedOptionsState {
+  const options = localStorage.getItem(UNLOCKED_OPTIONS_KEY);
+  return options ? JSON.parse(options) : {
+    double: false,
+    triple: false,
+    quad: false,
+    quint: false,
+  };
 }

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, History, X, Trash2, Sun, Moon, Gift, Award, BookOpen, Star, Repeat, RefreshCw, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Sparkles, History, X, Trash2, Gift, Award, BookOpen, Star, Repeat, RefreshCw, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { AuraResult, AuraHistory, Achievement, Collection, DailyReward, Aura } from './types';
-import { getRandomAura, generateMultipleAuras as generateMultiple } from './utils/getRandomAura';
+import { getRandomAura, generateMultipleAuras as generateMultiple, getAuraByName, getUncollectedAuraByRarity } from './utils/getRandomAura';
 import { 
   saveAuraToHistory, 
   getAuraHistory, 
@@ -14,10 +14,19 @@ import {
   incrementTotalAuras,
   getDailyRewards,
   claimDailyReward,
-  resetAllProgress
+  resetAllProgress,
+  removeAurasFromCollection,
+  getUnlockedGenerationOptions,
+  saveUnlockedGenerationOptions
 } from './utils/localStorage';
 import { playSound } from './utils/sound';
 import { getRarityBadge, getRarityColor } from './utils/rarity';
+
+type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'unique' | 'mythical';
+
+interface RecipeInput {
+  [key: string]: number | undefined;
+}
 
 function App() {
   const [result, setResult] = useState<AuraResult>({
@@ -31,11 +40,12 @@ function App() {
   const [showAchievements, setShowAchievements] = useState(false);
   const [showDailyRewards, setShowDailyRewards] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showRecipes, setShowRecipes] = useState(false);
+  const [showCrafting, setShowCrafting] = useState(false);
   const [history, setHistory] = useState<AuraHistory[]>(getAuraHistory());
   const [collection, setCollection] = useState<Collection>(getCollection());
   const [achievements, setAchievements] = useState<Achievement[]>(getAchievements());
   const [dailyRewards, setDailyRewards] = useState<DailyReward[]>(getDailyRewards());
-  const [isDarkMode, setIsDarkMode] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [multipleGenerationCount, setMultipleGenerationCount] = useState(1);
   const [luckyBoost, setLuckyBoost] = useState(0);
@@ -47,11 +57,49 @@ function App() {
   const [unlockedGenerationOptions, setUnlockedGenerationOptions] = useState<{
     double: boolean;
     triple: boolean;
-  }>({ double: false, triple: false });
+    quad: boolean;
+    quint: boolean;
+  }>({
+    double: false,
+    triple: false,
+    quad: false,
+    quint: false
+  });
+  const [selectedAurasForCrafting, setSelectedAurasForCrafting] = useState<Array<{ aura: Aura; count: number }>>([]);
+  const [unlockedFromDailyRewards, setUnlockedFromDailyRewards] = useState({
+    double: false,
+    triple: false,
+    quad: false,
+    quint: false,
+  });
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', isDarkMode);
-  }, [isDarkMode]);
+    setUnlockedFromDailyRewards(getUnlockedGenerationOptions());
+  }, []);
+
+  const craftingRecipes = [
+    { input: { common: 3 } as RecipeInput, outputRarity: 'uncommon' as Rarity, description: '3 Обычные ауры → 1 Случайная Необычная' },
+    { input: { common: 5 } as RecipeInput, outputRarity: 'rare' as Rarity, description: '5 Обычных аур → 1 Случайная Редкая' },
+    { input: { uncommon: 3 } as RecipeInput, outputRarity: 'rare' as Rarity, description: '3 Необычные ауры → 1 Случайная Редкая' },
+    { input: { uncommon: 5 } as RecipeInput, outputRarity: 'epic' as Rarity, description: '5 Необычных аур → 1 Случайная Эпическая' },
+    { input: { rare: 3 } as RecipeInput, outputRarity: 'epic' as Rarity, description: '3 Редкие ауры → 1 Случайная Эпическая' },
+    { input: { rare: 5 } as RecipeInput, outputRarity: 'legendary' as Rarity, description: '5 Редких аур → 1 Случайная Легендарная' },
+    { input: { epic: 2 } as RecipeInput, outputRarity: 'legendary' as Rarity, description: '2 Эпические ауры → 1 Случайная Легендарная' },
+    { input: { epic: 3 } as RecipeInput, outputRarity: 'unique' as Rarity, description: '3 Эпические ауры → 1 Случайная Уникальная' },
+    { input: { legendary: 2 } as RecipeInput, outputRarity: 'unique' as Rarity, description: '2 Легендарные ауры → 1 Случайная Уникальная' },
+    { input: { legendary: 3 } as RecipeInput, outputRarity: 'mythical' as Rarity, description: '3 Легендарные ауры → 1 Случайная Мифическая' },
+
+   
+    { input: { uncommon: 7 } as RecipeInput, outputType: 'uncollected', outputRarity: 'rare' as Rarity, description: '7 Необычных аур → 1 Несобранная Редкая' },
+    { input: { rare: 5 } as RecipeInput, outputType: 'uncollected', outputRarity: 'epic' as Rarity, description: '5 Редких аур → 1 Несобранная Эпическая' },
+    { input: { epic: 4 } as RecipeInput, outputType: 'uncollected', outputRarity: 'legendary' as Rarity, description: '4 Эпические ауры → 1 Несобранная Легендарная' },
+
+   
+    { input: { "Аура Огня": 1, "Аура Земли": 1 } as RecipeInput, outputName: "Аура Вулкана", outputRarity: 'epic' as Rarity, description: 'Аура Огня + Аура Земли → Аура Вулкана' },
+    { input: { "Аура Воды": 1, "Аура Воздуха": 1 } as RecipeInput, outputName: "Аура Тумана", outputRarity: 'uncommon' as Rarity, description: 'Аура Воды + Аура Воздуха → Аура Тумана' },
+    { input: { "Аура Света": 1, "Аура Тьмы": 1 } as RecipeInput, outputName: "Аура Равновесия", outputRarity: 'legendary' as Rarity, description: 'Аура Света + Аура Тьмы → Аура Равновесия' },
+    { input: { "Аура Леса": 2, common: 3 } as RecipeInput, outputName: "Древесная Аура", outputRarity: 'rare' as Rarity, description: '2 Ауры Леса + 3 Обычные ауры → Древесная Аура' },
+  ];
 
   useEffect(() => {
     const checkDailyRewardAvailability = () => {
@@ -94,7 +142,7 @@ function App() {
         setTimeout(() => setNewAchievementUnlocked(null), 5000);
       }
       
-     
+   
       setAchievements(latestAchievements);
     };
     
@@ -108,18 +156,18 @@ function App() {
 
   useEffect(() => {
     const updateUnlockedOptions = () => {
-      const rewards = getDailyRewards();
-      const day2Claimed = rewards.find(r => r.day === 2)?.claimed || false;
-      const day5Claimed = rewards.find(r => r.day === 5)?.claimed || false;
+      const cyclesCompleted = stats.monthlyCyclesCompleted || 0;
       
       setUnlockedGenerationOptions({
-        double: day2Claimed,
-        triple: day5Claimed
+        double: unlockedFromDailyRewards.double || cyclesCompleted >= 1,
+        triple: unlockedFromDailyRewards.triple || cyclesCompleted >= 1,
+        quad: unlockedFromDailyRewards.quad || cyclesCompleted >= 2,
+        quint: unlockedFromDailyRewards.quint || cyclesCompleted >= 3
       });
     };
     
     updateUnlockedOptions();
-  }, [dailyRewards]);
+  }, [stats, unlockedFromDailyRewards]);
 
   const generateAura = async (options = {}) => {
     setIsGenerating(true);
@@ -158,7 +206,14 @@ function App() {
 
     setHistory(getAuraHistory());
     setCollection(getCollection());
-    setStats(getUserStats());
+    setStats(() => {
+      const newStats = getUserStats();
+      newStats.totalAuras++;
+      if (newAura.chance <= 5) {
+        newStats.rareAurasFound++;
+      }
+      return newStats;
+    });
     
 
     setAchievements(getAchievements());
@@ -166,8 +221,10 @@ function App() {
 
   const handleGenerateMultipleAuras = async (count: number) => {
     if ((count === 2 && !unlockedGenerationOptions.double) || 
-        (count === 3 && !unlockedGenerationOptions.triple)) {
-      alert("Эта функция еще не разблокирована. Получите её через ежедневные награды!");
+        (count === 3 && !unlockedGenerationOptions.triple) ||
+        (count === 4 && !unlockedGenerationOptions.quad) ||
+        (count === 5 && !unlockedGenerationOptions.quint)) {
+      alert("Эта функция еще не разблокирована. Получите её, завершая месячные циклы ежедневных наград!");
       return;
     }
     
@@ -233,7 +290,14 @@ function App() {
 
     setHistory(getAuraHistory());
     setCollection(getCollection());
-    setStats(getUserStats());
+    setStats(() => {
+      const newStats = getUserStats();
+      newStats.totalAuras += count;
+      if (hasRareAura) {
+        newStats.rareAurasFound += count;
+      }
+      return newStats;
+    });
     setAchievements(getAchievements());
     
   
@@ -258,70 +322,81 @@ function App() {
       const reward = dailyRewards.find(r => r.day === day);
       
       if (reward) {
-        switch (day) {
-          case 1:
-            setLuckyBoost(10);
-            break;
-          case 2:
-            setUnlockedGenerationOptions(prev => ({ ...prev, double: true }));
-            setMultipleGenerationCount(2);
-            break;
-          case 3:
-            setLuckyBoost(20);
-            break;
-          case 5:
-            setUnlockedGenerationOptions(prev => ({ ...prev, triple: true }));
-            setMultipleGenerationCount(3);
-            break;
-          case 7:
-            generateAura({ guaranteedRarity: 'epic' });
-            break;
-          case 8:
-            setLuckyBoost(15);
-            break;
-          case 11:
-            setLuckyBoost(25);
-            break;
-          case 12:
-            handleGenerateMultipleAuras(5);
-            break;
-          case 14:
-            generateAura({ guaranteedRarity: 'legendary' });
-            break;
-          case 16:
-            setLuckyBoost(30);
-            break;
-          case 17:
-            handleGenerateMultipleAuras(3);
-            break;
-          case 20:
-            alert("Доступ к специальным аурам активирован!");
-            break;
-          case 21:
-            generateAura({ guaranteedRarity: 'unique' });
-            break;
-          case 23:
-            setLuckyBoost(40);
-            break;
-          case 24:
-            alert("Вы получили 10 генераций ауры! Теперь можете использовать их в любое время.");
-            break;
-          case 26:
-            setLuckyBoost(50);
-            break;
-          case 28:
-            alert("Вы получили 7 гарантированных редких аур! Используйте их в любое время.");
-            break;
-          case 30:
-            handleGenerateMultipleAuras(5);
-            break;
-          case 31:
-            generateAura({ guaranteedRarity: 'mythical', chance: 0.1 });
-            break;
-          default:
-            alert(`Награда за день ${day} получена!`);
-            break;
-        }
+        setStats(() => {
+          const newStats = getUserStats();
+          let updatedUnlockedOptions = { ...unlockedFromDailyRewards };
+          
+          switch (day) {
+            case 1:
+              setLuckyBoost(10);
+              break;
+            case 2:
+              updatedUnlockedOptions = { ...updatedUnlockedOptions, double: true };
+              setMultipleGenerationCount(2);
+              break;
+            case 3:
+              setLuckyBoost(20);
+              break;
+            case 5:
+              updatedUnlockedOptions = { ...updatedUnlockedOptions, triple: true };
+              setMultipleGenerationCount(3);
+              break;
+            case 7:
+              generateAura({ guaranteedRarity: 'epic' });
+              break;
+            case 8:
+              setLuckyBoost(15);
+              break;
+            case 11:
+              setLuckyBoost(25);
+              break;
+            case 12:
+              handleGenerateMultipleAuras(5);
+              break;
+            case 14:
+              generateAura({ guaranteedRarity: 'legendary' });
+              break;
+            case 16:
+              setLuckyBoost(30);
+              break;
+            case 17:
+              handleGenerateMultipleAuras(3);
+              break;
+            case 20:
+              alert("Доступ к специальным аурам активирован!");
+              break;
+            case 21:
+              generateAura({ guaranteedRarity: 'unique' });
+              break;
+            case 23:
+              setLuckyBoost(40);
+              break;
+            case 24:
+              alert("Вы получили 10 генераций ауры! Теперь можете использовать их в любое время.");
+              break;
+            case 26:
+              setLuckyBoost(50);
+              break;
+            case 28:
+              alert("Вы получили 7 гарантированных редких аур! Используйте их в любое время.");
+              break;
+            case 30:
+              handleGenerateMultipleAuras(5);
+              break;
+            case 31:
+              generateAura({ guaranteedRarity: 'mythical', chance: 0.1 });
+              break;
+            default:
+              alert(`Награда за день ${day} получена!`);
+              break;
+          }
+          
+          saveUnlockedGenerationOptions(updatedUnlockedOptions);
+          setUnlockedFromDailyRewards(updatedUnlockedOptions);
+          
+          return newStats;
+        });
+        
         confetti({
           particleCount: 100,
           spread: 70,
@@ -331,7 +406,6 @@ function App() {
         
         playSound('reveal');
         setDailyRewards(getDailyRewards());
-        setStats(getUserStats());
       }
     }
   };
@@ -363,26 +437,147 @@ function App() {
     });
   };
 
+  const handleAuraSelectForCrafting = (aura: Aura) => {
+    const existing = selectedAurasForCrafting.find(item => item.aura.name === aura.name);
+    const collectedItem = collection.auras.find(item => item.aura.name === aura.name);
+    const collectedCount = collectedItem ? collectedItem.count : 0;
+
+    if (collectedCount === 0) {
+      alert("У вас нет этой ауры в коллекции.");
+      return;
+    }
+
+    if (existing) {
+      if (existing.count < collectedCount) {
+        setSelectedAurasForCrafting(prev => prev.map(item =>
+          item.aura.name === aura.name ? { ...item, count: item.count + 1 } : item
+        ));
+      } else {
+        alert(`У вас всего ${collectedCount} ${aura.name}. Выбрано максимальное количество.`);
+      }
+    } else {
+      if (1 <= collectedCount) {
+        setSelectedAurasForCrafting(prev => [...prev, { aura, count: 1 }]);
+      } else {
+        alert("Недостаточно аур в коллекции.");
+      }
+    }
+  };
+
+  const handleRemoveAuraFromCrafting = (aura: Aura) => {
+    setSelectedAurasForCrafting(prev => prev.filter(item => item.aura.name !== aura.name));
+  };
+
+  const handleCraftAuras = () => {
+    const selectedAuras = selectedAurasForCrafting.reduce((acc, item) => {
+      acc[item.aura.name] = item.count;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const selectedAurasArray = selectedAurasForCrafting.flatMap(item => Array(item.count).fill(item.aura));
+
+    const matchesRecipe = (recipeInput: RecipeInput) => {
+      const countsByRarity = selectedAurasArray.reduce((acc, aura) => {
+        const rarity = getAuraRarity(aura.chance);
+        acc[rarity] = (acc[rarity] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      for (const requiredKey in recipeInput) {
+        const requiredCount = recipeInput[requiredKey] || 0;
+        let userCount = 0;
+ 
+        if (requiredKey === 'common' || requiredKey === 'uncommon' || requiredKey === 'rare' || requiredKey === 'epic' || requiredKey === 'legendary' || requiredKey === 'unique' || requiredKey === 'mythical') {
+           userCount = countsByRarity[requiredKey] || 0;
+        } else { 
+           userCount = selectedAuras[requiredKey] || 0; 
+        }
+ 
+        if (userCount < requiredCount) return false;
+      }
+
+      return true;
+    };
+    const getAuraRarity = (chance: number): Rarity => {
+       if (chance <= 0.1) return 'mythical';
+       if (chance <= 0.5) return 'unique';
+       if (chance <= 1) return 'legendary';
+       if (chance <= 5) return 'epic';
+       if (chance <= 10) return 'rare';
+       if (chance <= 20) return 'uncommon';
+       return 'common';
+    };
+
+
+    let resultAura: Aura | null = null;
+    let craftedSuccessfully = false;
+
+    for (const recipe of craftingRecipes) {
+      if (matchesRecipe(recipe.input)) {
+        removeAurasFromCollection(selectedAurasForCrafting);
+
+        if (recipe.outputType === 'uncollected') {
+          const uncollectedAura = getUncollectedAuraByRarity(recipe.outputRarity);
+          if (uncollectedAura) {
+            resultAura = uncollectedAura;
+          } else {
+            console.warn(`No uncollected auras of rarity "${recipe.outputRarity}" found. Generating random aura of this rarity.`);
+            resultAura = getRandomAura({ guaranteedRarity: recipe.outputRarity, luckyBoost: luckyBoost });
+          }
+        } else {
+          if (recipe.outputName) {
+            const specificAura = getAuraByName(recipe.outputName);
+            if (specificAura) {
+              resultAura = specificAura;
+            } else {
+               console.warn(`Specific aura "${recipe.outputName}" not found. Generating random aura of rarity ${recipe.outputRarity}`);
+               resultAura = getRandomAura({ guaranteedRarity: recipe.outputRarity, luckyBoost: luckyBoost });
+            }
+          } else {
+             resultAura = getRandomAura({ guaranteedRarity: recipe.outputRarity, luckyBoost: luckyBoost });
+          }
+        }
+
+        craftedSuccessfully = true;
+        break;
+      }
+    }
+
+    if (!craftedSuccessfully) {
+      alert("Выбранная комбинация аур не соответствует ни одному рецепту крафта.");
+    } else if (resultAura) {
+      const craftedAura: Aura = resultAura;
+
+      addAuraToCollection(craftedAura);
+      saveAuraToHistory({ aura: craftedAura, timestamp: Date.now() });
+      setCollection(getCollection());
+      setHistory(getAuraHistory());
+      setStats(getUserStats());
+      setAchievements(getAchievements());
+      setResult({ aura: craftedAura, isRevealed: true });
+      setMultipleResults([]);
+      setCurrentAuraIndex(0);
+      setSelectedAurasForCrafting([]);
+      if (craftedAura.chance <= 5) {
+        confetti({
+          particleCount: 150,
+          spread: 80,
+          origin: { y: 0.6 },
+          colors: ['#818CF8', '#C084FC', '#F472B6']
+        });
+        playSound('rare');
+      } else {
+        playSound('reveal');
+      }
+      alert(`Успешный крафт! Вы получили: ${craftedAura.name}`);
+    }
+  };
+
   return (
     <div className={`min-h-screen transition-colors duration-700 ${
-      isDarkMode ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900' : 
-                   'bg-gradient-to-br from-gray-100 via-white to-gray-100'
+      'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900'
     } flex flex-col items-center justify-center p-4 relative overflow-hidden`}>
       
       <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10 animate-pulse-slow"></div>
-      <button
-        onClick={() => setIsDarkMode(!isDarkMode)}
-        className="absolute top-4 right-4 p-3 rounded-full glass-effect
-                   hover:scale-110 active:scale-95 transition-all duration-300
-                   hover:shadow-glow"
-        aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-      >
-        {isDarkMode ? (
-          <Sun className="w-6 h-6 text-yellow-300 animate-glow" />
-        ) : (
-          <Moon className="w-6 h-6 text-gray-600 animate-glow" />
-        )}
-      </button>
       <button
         onClick={() => setShowResetConfirm(true)}
         className="absolute top-4 left-4 p-3 rounded-full glass-effect
@@ -453,6 +648,22 @@ function App() {
         >
           <History className="w-6 h-6" />
         </button>
+        <button
+          onClick={() => setShowRecipes(true)}
+          className="p-3 rounded-full glass-button text-cyan-400 hover:text-cyan-300"
+          aria-label="Crafting Recipes"
+          title="Рецепты крафта"
+        >
+          <BookOpen className="w-6 h-6" />
+        </button>
+        <button
+          onClick={() => setShowCrafting(true)}
+          className="p-3 rounded-full glass-button text-purple-400 hover:text-purple-300"
+          aria-label="Crafting"
+          title="Крафт аур"
+        >
+          <Sparkles className="w-6 h-6" />
+        </button>
       </div>
 
       <div className="w-full max-w-md px-4 sm:px-0 relative z-10">
@@ -503,7 +714,7 @@ function App() {
                 ? 'bg-white/10 text-gray-300 hover:bg-white/20'
                 : 'bg-white/5 text-gray-500 cursor-not-allowed'
             }`}
-            title={unlockedGenerationOptions.double ? "Двойная генерация" : "Разблокируется на 2-й день ежедневных наград"}
+            title={unlockedGenerationOptions.double ? "Двойная генерация" : "Разблокируется после завершения 1-го месячного цикла ежедневных наград"}
           >
             {unlockedGenerationOptions.double ? 'x2' : <span><i className="lock">🔒</i> x2</span>}
           </button>
@@ -517,9 +728,37 @@ function App() {
                 ? 'bg-white/10 text-gray-300 hover:bg-white/20'
                 : 'bg-white/5 text-gray-500 cursor-not-allowed'
             }`}
-            title={unlockedGenerationOptions.triple ? "Тройная генерация" : "Разблокируется на 5-й день ежедневных наград"}
+            title={unlockedGenerationOptions.triple ? "Тройная генерация" : "Разблокируется после завершения 1-го месячного цикла ежедневных наград"}
           >
             {unlockedGenerationOptions.triple ? 'x3' : <span><i className="lock">🔒</i> x3</span>}
+          </button>
+          <button
+            onClick={() => unlockedGenerationOptions.quad ? setMultipleGenerationCount(4) : setMultipleGenerationCount(1)}
+            disabled={!unlockedGenerationOptions.quad}
+            className={`px-3 py-1.5 rounded-full transition-all ${
+              multipleGenerationCount === 4 && unlockedGenerationOptions.quad
+              ? 'bg-green-600 text-white'
+              : unlockedGenerationOptions.quad 
+                ? 'bg-white/10 text-gray-300 hover:bg-white/20'
+                : 'bg-white/5 text-gray-500 cursor-not-allowed'
+            }`}
+            title={unlockedGenerationOptions.quad ? "Четверная генерация" : "Разблокируется после завершения 2-х месячных циклов ежедневных наград"}
+          >
+            {unlockedGenerationOptions.quad ? 'x4' : <span><i className="lock">🔒</i> x4</span>}
+          </button>
+          <button
+            onClick={() => unlockedGenerationOptions.quint ? setMultipleGenerationCount(5) : setMultipleGenerationCount(1)}
+            disabled={!unlockedGenerationOptions.quint}
+            className={`px-3 py-1.5 rounded-full transition-all ${
+              multipleGenerationCount === 5 && unlockedGenerationOptions.quint
+              ? 'bg-red-600 text-white'
+              : unlockedGenerationOptions.quint 
+                ? 'bg-white/10 text-gray-300 hover:bg-white/20'
+                : 'bg-white/5 text-gray-500 cursor-not-allowed'
+            }`}
+            title={unlockedGenerationOptions.quint ? "Пятерная генерация" : "Разблокируется после завершения 3-х месячных циклов ежедневных наград"}
+          >
+            {unlockedGenerationOptions.quint ? 'x5' : <span><i className="lock">🔒</i> x5</span>}
           </button>
         </div>
         {luckyBoost > 0 && (
@@ -944,6 +1183,130 @@ function App() {
                 </div>
                 Посещайте игру каждый день, чтобы получать награды. При серии в 31 день награды обновятся и станут доступны снова.
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showRecipes && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md 
+                      flex items-center justify-center p-4 z-50
+                      animate-fade-in">
+          <div className="bg-gray-800/90 rounded-2xl w-full max-w-lg max-h-[80vh] 
+                        overflow-hidden flex flex-col backdrop-blur-xl
+                        border border-gray-700/50 shadow-2xl
+                        animate-slide-up">
+            <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-cyan-400" />
+                Рецепты Крафта
+              </h2>
+              <button
+                onClick={() => setShowRecipes(false)}
+                className="p-2 text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {craftingRecipes.length === 0 ? (
+                <div className="text-center text-gray-400">Рецепты крафта пока не добавлены.</div>
+              ) : (
+                <div className="divide-y divide-gray-700">
+                  {craftingRecipes.map((recipe, index) => (
+                    <div key={index} className="py-4">
+                      <p className="text-white font-semibold mb-1">{recipe.description}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {showCrafting && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md 
+                      flex items-center justify-center p-4 z-50
+                      animate-fade-in">
+          <div className="bg-gray-800/90 rounded-2xl w-full max-w-lg max-h-[80vh] 
+                        overflow-hidden flex flex-col backdrop-blur-xl
+                        border border-gray-700/50 shadow-2xl
+                        animate-slide-up">
+            <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-400" />
+                Крафт аур
+              </h2>
+              <button
+                onClick={() => setShowCrafting(false)}
+                className="p-2 text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <h3 className="text-lg font-semibold text-white mb-4">Выберите ауры из коллекции для крафта:</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {collection.auras.length === 0 ? (
+                  <div className="col-span-2 text-center text-gray-400">Ваша коллекция пуста</div>
+                ) : (
+                  collection.auras
+                    .sort((a, b) => a.aura.chance - b.aura.chance)
+                    .map((item, index) => (
+                      <div
+                        key={index}
+                        className={`p-3 rounded-lg relative overflow-hidden shadow-md
+                                     ${selectedAurasForCrafting.some(s => s.aura.name === item.aura.name) ? 'border-2 border-purple-500' : 'border border-transparent'}
+                                     ${item.count === 0 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-[1.02] transition-transform'}`}
+                        style={{
+                          backgroundColor: item.aura.color,
+                          color: ['#ECF0F1', '#FFD700'].includes(item.aura.color) ? '#2C3E50' : 'white'
+                        }}
+                        onClick={() => item.count > 0 && handleAuraSelectForCrafting(item.aura)}
+                      >
+                        <div className="absolute top-1 right-1 text-xs font-bold opacity-80">
+                          x{item.count}
+                        </div>
+                        <h3 className="font-semibold text-sm">{item.aura.name}</h3>
+                        <div className="mt-1 text-xs opacity-80 flex items-center">
+                          <span className={`px-1.5 py-0.5 rounded text-xs ${getRarityColor(item.aura.chance)}`}>
+                            {item.aura.chance}%
+                          </span>
+                        </div>
+                        {selectedAurasForCrafting.some(s => s.aura.name === item.aura.name) && (
+                          <div className="absolute bottom-1 left-1 text-xs font-bold bg-purple-600/80 px-1 py-0.5 rounded text-white">
+                            Выбрано: {selectedAurasForCrafting.find(s => s.aura.name === item.aura.name)?.count}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                )}
+              </div>
+              {selectedAurasForCrafting.length > 0 && (
+                <div className="mt-6 p-4 bg-gray-700/50 rounded-lg">
+                  <h4 className="text-white font-semibold mb-2">Выбрано для крафта:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedAurasForCrafting.map((item, index) => (
+                      <span key={index} className="bg-purple-600/70 text-white text-sm px-3 py-1 rounded-full flex items-center gap-1">
+                        {item.aura.name} x{item.count}
+                        <button onClick={() => handleRemoveAuraFromCrafting(item.aura)} className="text-purple-200 hover:text-white">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <button
+                    onClick={handleCraftAuras}
+                    disabled={selectedAurasForCrafting.reduce((sum, item) => sum + item.count, 0) < 2}
+                    className={`mt-4 w-full py-3 rounded-xl font-semibold text-white
+                               ${selectedAurasForCrafting.reduce((sum, item) => sum + item.count, 0) < 2
+                                  ? 'bg-gray-600 cursor-not-allowed opacity-75'
+                                  : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 transition-all'}
+                               `}
+                  >
+                    Создать ауру ({selectedAurasForCrafting.reduce((sum, item) => sum + item.count, 0)} выбрано)
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

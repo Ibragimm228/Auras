@@ -1,6 +1,7 @@
 import { Aura } from '../types';
 import { auras } from '../data/auras';
-import { getUserStats } from './localStorage';
+import { getUserStats, getCollection } from './localStorage';
+import { CollectedAura } from '../types';
 
 interface GetRandomAuraOptions {
   luckyBoost?: number;
@@ -121,4 +122,39 @@ export function generateMultipleAuras(count: number, options: GetRandomAuraOptio
   }
   
   return results;
+}
+
+export function getAuraByName(name: string): Aura | undefined {
+  return auras.find(aura => aura.name === name);
+}
+
+export function getUncollectedAuraByRarity(rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'unique' | 'mythical'): Aura | undefined {
+  const collection = getCollection();
+  const collectedAuraNames = new Set(collection.auras.map((item: CollectedAura) => item.aura.name));
+
+  const rarityRanges = {
+    common: { min: 25, max: 50 },
+    uncommon: { min: 10, max: 24 },
+    rare: { min: 5, max: 9 },
+    epic: { min: 2, max: 4 },
+    legendary: { min: 0, max: 1 },
+    unique: { min: 0.2, max: 0.5 },
+    mythical: { min: 0, max: 0.1 }
+  };
+
+  const range = rarityRanges[rarity];
+  if (!range) return undefined;
+
+  const uncollectedAurasOfRarity = auras.filter(aura =>
+    !collectedAuraNames.has(aura.name) &&
+    aura.chance >= range.min && aura.chance <= range.max
+  );
+
+  if (uncollectedAurasOfRarity.length === 0) {
+    return undefined; 
+  }
+
+
+  const randomIndex = Math.floor(Math.random() * uncollectedAurasOfRarity.length);
+  return uncollectedAurasOfRarity[randomIndex];
 }
